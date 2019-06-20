@@ -1,51 +1,68 @@
 <template>
-  <div id="container">
-    <div class="header text-align-center">MP3 Splitter {{ platform }}</div>
-    <div v-show="errors.length > 0" class="errors text-align-center">
-      <div v-for="error in errors">{{ error }}</div>
+  <main>
+    <div class="top">
+      <div class="title"><img id="logo" src="~@/assets/note.png" alt="logo"><span class="title-text">MP3 Splitter</span></div>
+      <div class="info">
+        <div>Platform: {{ platform }}</div>
+        <div>Version: {{ version }}</div>
+      </div>
     </div>
-    <main>
-      <div style="display: flex; flex-direction: column; justify-content: space-between;" class="height100 width100">
-        <div class="flex justify-content-space-between width100">
-
-          <div class="flex flex-basis-50 flex-direction-column padding-20 height100">
-            <div class="margin-bottom-20">Files: {{ filesCount }} total</div>
-            <a @click="addFiles()" v-bind:class="buttonStyles" class="btn margin-bottom-20">Add Files</a>
-            <div v-for="file in files" class="flex position-relative">
-              <div @click="removeFile(file.path)" class="close"></div>
-              <div @click="openFile(file.path)" class="blue-btn width100">{{ file.path }} - {{ humanTime(file.duration) }}</div>
+    <div class="middle">
+      <div class="left">
+        <div class="input-container">
+          <div>
+            <div class="smaller-title">Input</div>
+            <div class="input-btn-container">
+              <a @click="addFile()" class="blue btn" id="add-btn">Add File</a>
+              <a @click="openFile(inputFilePath)" class="blue btn" :class="{ disabled: !inputFilePath }" id="open-btn">Open File</a>
             </div>
+            <div>Path: {{ inputFilePath }}</div>
+            <div>Duration: {{ humanTime(inputFileDuration) }}</div>
           </div>
-          <div class="flex flex-basis-50 flex-direction-column padding-20 height100">
-            <label class="margin-bottom-20">Clip duration (minutes)<input v-model="clipDuration" type="text" :disabled="disabled" /></label>
-            <label class="margin-bottom-20">Time overlap (seconds)<input v-model="overlap" :disabled="disabled" type="text" /></label>
-            <label class="margin-bottom-20">Output</label>
-            <div v-show="outputs.length === 0">None</div>
-            <div v-show="outputs.length !== 0">
-              <div v-for="output in outputs">
-                {{ output }}
-              </div>
-            </div>
-          </div>
-
         </div>
-        <div id="bottom" class="flex justify-content-space-between width100">
-          <a @click="split()" v-bind:class="buttonStyles" class="btn text-align-center width50">Split!</a>
-          <a @click="clearOutput()" class="red btn text-align-center width50">Clear Output/Reset</a>
+        <div class="output-container">
+          <div class="smaller-title">Output</div>
+          <div>Path: {{ outputPath }}</div>
+          <div>Files: </div>
+          <div class="output-files">
+            <div v-for="file in outputFilesPath">
+              {{ file }}
+            </div>
+          </div>
         </div>
       </div>
-    </main>
-  </div>
+      <div class="right">
+        <label class="">Clip duration (minutes)<input v-model="clipDuration" type="text" :disabled="disabled" /></label>
+        <label class="">Clip overlap (seconds)<input v-model="overlap" :disabled="disabled" type="text" /></label>
+        <label class="">Log</label>
+        <div class="log-container">
+          <div class="log" v-for="log in logs">
+            <span v-if="log.level === 'info'">[{{ log.time }}]: {{ log.message }}</span>
+            <span v-if="log.level === 'error'" class="error">[{{ log.time }}]: {{ log.message }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bottom">
+      <a @click="split()"
+        :class="{
+          green: !disabled,
+          disabled: disabled,
+        }" class="btn">Split!</a>
+      <a @click="reset()" class="red btn">Reset</a>
+    </div>
+  </main>
 </template>
 
 <script>
+import util from 'util';
+import path from 'path';
+import os from 'os';
 import { ipcRenderer, shell, remote } from 'electron'; // eslint-disable-line import/no-extraneous-dependencies
-import { spawnSync } from 'child_process';
-import ffbinaries from 'ffbinaries';
+import { exec, execSync } from 'child_process';
 import ffmpeg from 'ffmpeg-static';
 import ffprobe from 'ffprobe-static';
-// import fs from 'fs';
-import path from 'path';
+const execPromise = util.promisify(exec); // eslint-disable-line
 
 export default {
   name: 'home-page',
@@ -53,122 +70,167 @@ export default {
     ipcRenderer.on('selected-directory', (event, path) => {
       this.directories = this.directories.concat(path);
     });
-    // const testFiles = [{
-    //   path: '/Users/tytuser/Documents/test.mp3',
-    //   duration: this.getDuration('/Users/tytuser/Documents/test.mp3'),
-    // }];
-    // this.files = testFiles;
+    this.addLog('Ready');
+    this.outputPath = path.join(os.homedir(), 'Desktop');
+
+    // remote.dialog.showMessageBox({
+    //   message: `Error: ${err.message}`,
+    // });
   },
   methods: {
+    addLog(message, level = 'info') {
+      this.logs.push({
+        time: new Date().toLocaleTimeString('en-US'),
+        message,
+        level,
+      });
+      this.$nextTick(() => {
+        const container = this.$el.querySelector('.log-container');
+        container.scrollTop = container.scrollHeight;
+      });
+    },
+    getPlatform() {
+      const type = os.type().toLowerCase();
+      const arch = os.arch().toLowerCase();
+      if (type === 'darwin') {
+        return 'osx-64';
+      // } else if (type === 'windows_nt') {
+      }
+      return arch === 'x64' ? 'windows-64' : 'windows-32';
+    },
     humanTime(seconds) {
-      return new Date(1000 * seconds).toISOString().substr(11, 8);
-    },
-    // addDirectory() {
-    //   ipcRenderer.send('open-file-dialog');
-    // },
-    addFiles() {
-      const files = remote.dialog.showOpenDialog({
-        properties: ['openFile', 'multiSelections'],
-      });
-      if (!files) return;
-      files.forEach((file) => {
-        if (!this.files.includes(file)) {
-          this.files.push({
-            path: file,
-            duration: this.getDuration(file),
-          });
-        }
-      });
-    },
-    removeFile(file) {
-      this.files = this.files.filter(f => f.path !== file);
-    },
-    getDuration(file) {
       try {
-        // const ffprobe = `${__static}/ffprobe-${this.platform}`;
-        // const result = spawnSync('ls', [ffprobe]);
-        const program = ffprobe.path.replace('app.asar', 'app.asar.unpacked');
-        const options = [...'-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1'.split(' '), ...[file]];
-        const stdout = this.runCommand(program, options);
-        const duration = parseFloat(stdout.trim());
-        return duration;
+        return new Date(1000 * seconds).toISOString().substr(11, 8);
       } catch (err) {
-        console.log(err); // eslint-disable-line
-        // this.errors.push(err.message);
-        remote.dialog.showMessageBox({
-          message: `Error: ${err.message}`,
-        });
+        console.error(err); // eslint-disable-line no-console
+        this.addLog(err.message, 'error');
         return 'Error';
       }
     },
-    clearOutput() {
-      this.outputs = [];
+    addFile() {
+      const files = remote.dialog.showOpenDialog({
+        // properties: ['openFile', 'multiSelections'],
+        properties: ['openFile'],
+      });
+      if (!files) return;
       this.disabled = false;
+      files.forEach((file) => {
+        this.inputFilePath = file;
+        this.inputFileDuration = this.getDuration(file);
+        this.addLog(`Added file: ${file}`);
+      });
     },
-    runCommand(program, options) {
-      // const result = spawnSync('ls', [file]);
-      // const stdout = result.stdout.toString();
-      // return stdout;
-      const result = spawnSync(program, options);
-      const stdout = result.stdout.toString();
-      return stdout;
+    reset() {
+      this.logs = [];
+      this.inputFilePath = null;
+      this.inputFileDuration = null;
+      this.outputPath = path.join(os.homedir(), 'Desktop');
+      this.outputFilesPath = [];
+      this.clipDuration = 60;
+      this.overlap = 10;
+      this.disabled = true;
+      this.addLog('Ready');
     },
     openFile(file) {
+      if (!file) {
+        this.addLog('No file selected', 'error');
+        return;
+      }
       shell.openItem(file);
     },
+    runCommand(program, options, sync = true) {
+      // Run command blocking execution
+      if (sync) {
+        const result = execSync(`${program} ${options}`);
+        return result.toString();
+      }
+      // Return a promise
+      return execPromise(`${program} ${options}`);
+    },
+    getDuration(file) {
+      try {
+        const program = ffprobe.path.replace('app.asar', 'app.asar.unpacked');
+        const options = '-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1';
+        const stdout = this.runCommand(program, `"${file}" ${options}`);
+        const duration = parseFloat(stdout.trim());
+        return duration;
+      } catch (err) {
+        console.error(err); // eslint-disable-line no-console
+        this.addLog(err.message, 'error');
+        return 0;
+      }
+    },
     async split() {
+      this.addLog('Split starting...');
       this.disabled = true;
-      this.files.map((file) => {
-        const name = path.basename(file.path, path.extname(file.path));
-        const ext = path.extname(file.path);
+      try {
+        // eslint-disable-next-line
+        const name = path.basename(this.inputFilePath, path.extname(this.inputFilePath));
+        const ext = path.extname(this.inputFilePath);
         const step = this.clipDuration * 60;
-        const overlap = this.overlap;
-        const times = Math.ceil(file.duration / step);
+        const { overlap } = this;
+        const times = Math.ceil(this.inputFileDuration / step);
         let startTime = 0;
         let endTime = step;
+        const promises = [];
         for (let part = 0; part < times; part += 1) {
           const partName = `${name}-${(part + 1).toString().padStart(2, '0')}`;
           const fileOutput = `${partName}${ext}`;
 
           endTime += overlap;
-          if (endTime > file.duration) {
-            endTime = file.duration;
+          if (endTime > this.inputFileDuration) {
+            endTime = this.inputFileDuration;
           }
-          this.outputs.push(`Splitting ${this.humanTime(startTime)} - ${this.humanTime(endTime)} ${fileOutput}`);
           const program = ffmpeg.path.replace('app.asar', 'app.asar.unpacked');
+          const output = `${this.outputPath}/${fileOutput}`;
           // eslint-disable-next-line
-          const options = `-y -i ${file.path} -ss ${startTime} -to ${endTime} -c copy ${fileOutput}`.split(' ');
-          this.runCommand(program, options);
+          const options = `-y -i "${this.inputFilePath}" -ss ${startTime} -to ${endTime} -c copy "${output}"`
+          const promise = this.runCommand(program, options, false);
+          // eslint-disable-next-line
+          const prepFunc = (startTime, endTime, output) => {
+            const func = () => {
+              this.addLog(`Splitted file ${this.humanTime(startTime)} - ${this.humanTime(endTime)} to ${fileOutput.replace(/\\ /g, ' ')}`);
+              this.outputFilesPath.push(output.replace(/\\ /g, ' '));
+            };
+            return func;
+          };
+          const func = prepFunc(startTime, endTime, output);
+
+          promise.then(func).catch(err => this.addLog(err.message, 'error'));
+          promises.push(promise);
           endTime -= overlap;
           startTime += step;
           endTime += step;
         }
-        return file;
-      });
+        Promise.all(promises).then(() => this.addLog('Split finished!'));
+      } catch (err) {
+        console.error(err); // eslint-disable-line no-console
+        this.addLog(err.message, 'error');
+      }
     },
   },
   computed: {
-    filesCount() {
-      return this.files.length;
-    },
-    buttonStyles() {
-      return {
-        green: !this.disabled,
-        disabled: this.disabled,
-      };
-    },
   },
   watch: {
+    outputFilesPath() {
+      this.$nextTick(() => {
+        const container = this.$el.querySelector('.output-files');
+        container.scrollTop = container.scrollHeight;
+      });
+    },
   },
   data() {
     return {
-      platform: ffbinaries.detectPlatform(),
-      errors: [],
-      files: [],
-      outputs: [],
+      platform: this.getPlatform(),
+      version: '1.1.1',
+      logs: [],
+      inputFilePath: null,
+      inputFileDuration: null,
+      outputPath: null,
+      outputFilesPath: [],
       clipDuration: 60,
       overlap: 10,
-      disabled: false,
+      disabled: true,
     };
   },
 };
@@ -192,10 +254,6 @@ html, body, #app, main {
 
 body { font-family: 'Source Sans Pro', sans-serif; }
 
-main {
-  display: flex;
-}
-
 input[type=text] {
   width: 100%;
   background: #fff;
@@ -210,68 +268,9 @@ li {
   list-style: none;
 }
 
-.flex {
-  display: flex
-}
-
-.justify-content-space-between {
-  justify-content: space-between;
-}
-
-.flex-basis-50 {
-  flex-basis: 50%;
-}
-
-.flex-grow {
-  flex-grow: 1;
-}
-
-.text-align-center {
-  text-align: center;
-}
-
-.flex-direction-column {
-  flex-direction: column;
-}
-
-.padding-20 {
-  padding: 20px;
-}
-
-.margin-bottom-20 {
-  margin-bottom: 20px;
-}
-
-.height100 {
-  height: 100%;
-}
-
-.width100 {
-  width: 100%;
-}
-
-.width50 {
-  width: 50%;
-}
-
-.position-relative {
-  position: relative;
-}
-
-#case-sensitive {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 12px;
-  line-height: 20px;
-}
-
-#case-sensitive > input {
-  font-size: x-large;
-}
-
-#container {
-  background: rgba(229, 229, 229, .3);
+main {
+  /* background: rgba(229, 229, 229, .3); */
+  background: #E0F2F1;
   height: 100%;
   padding: 20px;
   width: 100%;
@@ -279,20 +278,121 @@ li {
   flex-direction: column;
 }
 
-#bottom > a {
-  margin: 5px;
+#logo {
+  vertical-align: middle;
+  width: 50px;
 }
 
-.header {
-  color: #2c3e50;
-  font-size: 24px;
-  font-weight: bold;
+.title-text {
+  vertical-align: middle;
+}
+
+.middle {
+  display: flex;
+  flex-grow: 1;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.bottom {
+  display: flex;
+}
+
+.bottom > * {
+  width: 100%;
+  text-align: center;
+}
+
+.bottom > :not(:last-child) {
+  margin-right: 20px;
+}
+
+.bottom > :not(:first-child):not(:last-child) {
+  margin-right: 20px;
+  margin-left: 20px;
 }
 
 .title {
+  text-align: center;
   color: #2c3e50;
-  font-size: 20px;
+  font-size: 36px;
   font-weight: bold;
+}
+
+.info {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 50%;
+  padding-right: 10px;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 50%;
+  padding-left: 10px;
+}
+
+.right input {
+  margin-bottom: 20px;
+}
+
+.log-container {
+  padding: 5px;
+  border: 1px solid grey;
+  flex-grow: 1;
+  height: 180px;
+  overflow-y: auto;
+}
+
+.error {
+  color: red;
+}
+
+.input-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.input-btn-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.output-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.smaller-title {
+  font-size: 24px;
+  margin-bottom: 5px;
+  text-decoration: underline;
+  /* box-shadow: 0 5px 5px rgba(0, 0, 0, 0.125); */
+  /* background: #fff8c4; */
+  /* border: 1px solid #f2c779; */
+}
+
+#add-btn {
+  width: 48%;
+}
+
+#open-btn {
+  width: 48%;
+}
+
+.output-files {
+  padding: 5px;
+  overflow-y: auto;
+  flex-grow: 1;
+  border: 1px solid grey;
 }
 
 .close {
@@ -335,6 +435,12 @@ li {
   user-select: none;
 }
 
+.blue.btn {
+  color: #fff;
+  background-color: #3F51B5;
+  border: 1px solid #3F51B5;
+}
+
 .green.btn {
   color: #fff;
   background-color: #4fc08d;
@@ -373,18 +479,6 @@ li {
 .blue-btn.active {
   color: white;
   background-color: #2196f3;
-}
-
-.errors {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin: 20px;
-  padding: 10px;
-  font-size: 14px;
-  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.125);
-  background: #fff8c4;
-  border: 1px solid #f2c779;
 }
 
 ::-webkit-scrollbar {
