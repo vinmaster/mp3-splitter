@@ -141,11 +141,11 @@ export default {
     runCommand(program, options, sync = true) {
       // Run command blocking execution
       if (sync) {
-        const result = execSync(`${program} ${options}`);
+        const result = execSync(`"${program}" ${options}`);
         return result.toString();
       }
       // Return a promise
-      return execPromise(`${program} ${options}`);
+      return execPromise(`"${program}" ${options}`);
     },
     getDuration(file) {
       try {
@@ -222,7 +222,7 @@ export default {
   data() {
     return {
       platform: this.getPlatform(),
-      version: '1.1.1',
+      version: '1.1.2',
       logs: [],
       inputFilePath: null,
       inputFileDuration: null,
