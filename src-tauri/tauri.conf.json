@@ -1,0 +1,59 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "mp3-splitter",
+    "version": "2.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "sidecar": true,
+        "execute": true,
+        "open": true,
+        "scope": [
+          { "name": "bin/ffmpeg", "args": true, "sidecar": true },
+          { "name": "bin/ffprobe", "args": true, "sidecar": true }
+        ]
+      },
+      "os": {
+        "all": true
+      },
+      "path": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.mp3-splitter",
+      "icon": [
+        "icons/icon.icns",
+        "icons/icon.png",
+        "icons/icon.ico"
+      ],
+      "externalBin": ["bin/ffmpeg", "bin/ffprobe"]
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "MP3 Splitter",
+        "width": 800,
+        "height": 600
+      }
+    ]
+  }
+}
