@@ -16,6 +16,8 @@
 Need `src-tauri/bin` files, such as:
 - src-tauri/bin/ffmpeg-aarch64-apple-darwin
 - src-tauri/bin/ffprobe-aarch64-apple-darwin
+- src-tauri/bin/ffmpeg-x86_64-pc-windows-msvc.exe
+- src-tauri/bin/ffprobe-x86_64-pc-windows-msvc.exe
 
 ``` bash
 # install dependencies
