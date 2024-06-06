@@ -81,6 +81,9 @@ async function setSystemInfo() {
     case 'win32':
       systemInfo.platform = 'Windows';
       break;
+    case 'linux':
+      systemInfo.platform = 'Linux';
+      break;
     default:
       log('Sorry, system not supported');
       message('Sorry, system not supported');
