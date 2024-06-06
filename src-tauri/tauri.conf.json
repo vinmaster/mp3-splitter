@@ -3,8 +3,7 @@
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
     "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": true
+    "distDir": "../dist"
   },
   "package": {
     "productName": "mp3-splitter",
@@ -32,6 +31,16 @@
         "all": true
       }
     },
+    "windows": [
+      {
+        "title": "MP3 Splitter",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    },
     "bundle": {
       "active": true,
       "targets": "all",
@@ -42,18 +51,6 @@
         "icons/icon.ico"
       ],
       "externalBin": ["bin/ffmpeg", "bin/ffprobe"]
-    },
-    "security": {
-      "csp": null
-    },
-    "windows": [
-      {
-        "fullscreen": false,
-        "resizable": true,
-        "title": "MP3 Splitter",
-        "width": 800,
-        "height": 600
-      }
-    ]
+    }
   }
 }

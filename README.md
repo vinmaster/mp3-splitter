@@ -13,6 +13,10 @@
 
 #### Build Setup
 
+Need `src-tauri/bin` files, such as:
+- src-tauri/bin/ffmpeg-aarch64-apple-darwin
+- src-tauri/bin/ffprobe-aarch64-apple-darwin
+
 ``` bash
 # install dependencies
 npm install
